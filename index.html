@@ -6,17 +6,16 @@
     <title>Koh Tung - Survey Point Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React & Recharts Libraries -->
+    <!-- Core Libraries (ลำดับการโหลดสำคัญมากเพื่อป้องกันจอขาว) -->
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
     
-    <!-- Leaflet CSS & JS -->
+    <!-- Mapping Libraries -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Proj4js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
     
     <style>
@@ -26,26 +25,19 @@
             font-family: 'Inter', 'Noto Sans Thai', sans-serif; 
             -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
+            background: #f8fafc;
         }
         .font-black { font-weight: 900; }
         .shadow-premium { box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 4px 10px -4px rgba(0, 0, 0, 0.02); }
         
-        #map { height: 100%; width: 100%; border-radius: 2rem; z-index: 10; border: 1px solid #f1f5f9; }
+        #map { height: 100%; width: 100%; border-radius: 2rem; z-index: 10; border: 1px solid #f1f5f9; background: #f1f5f9; }
         .map-container { height: calc(100vh - 120px); position: sticky; top: 40px; }
         
-        /* --- Map Preview UI (Unified Navigation) --- */
-        .leaflet-top.leaflet-left { 
-            margin-top: 75px !important; 
-            margin-left: 16px !important;
-        }
-
         .leaflet-bar { 
             border: none !important; 
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
             border-radius: 14px !important;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
         }
         
         .leaflet-bar a, .leaflet-control-home-btn { 
@@ -62,23 +54,7 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .leaflet-bar a:last-child, .leaflet-control-home-btn { border-bottom: none !important; }
-        .leaflet-bar a:hover, .leaflet-control-home-btn:hover { background-color: #f8fafc !important; color: #2563eb !important; }
-
-        .leaflet-top.leaflet-right { margin-top: 16px !important; margin-right: 16px !important; }
-        .leaflet-control-layers { border: none !important; border-radius: 14px !important; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important; }
-
-        .leaflet-control-scale { margin-left: 20px !important; margin-bottom: 24px !important; }
-        .leaflet-control-scale-line { 
-            background: rgba(255, 255, 255, 0.8) !important; 
-            backdrop-filter: blur(8px);
-            border: 1.5px solid #94a3b8 !important; 
-            border-top: none !important;
-            color: #334155 !important;
-            font-weight: 800 !important;
-            font-size: 10px !important;
-            border-radius: 0 0 4px 4px;
-        }
+        .leaflet-bar a:hover { background-color: #f8fafc !important; color: #2563eb !important; }
 
         .map-status-pill {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
@@ -97,37 +73,26 @@
         }
         
         .leaflet-popup-content-wrapper { border-radius: 1.5rem; padding: 6px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.3); }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-
-        /* Custom Table Row Style */
-        .table-row-hover:hover {
-            background-color: #f1f5f9;
-            transform: scale(0.998);
-        }
+        
+        .table-row-hover:hover { background-color: #f1f5f9; transform: scale(0.998); }
     </style>
 </head>
-<body class="bg-[#fcfdfe]">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useMemo, useEffect, useRef } = React;
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } = Recharts;
 
+        // กำหนด UTM Zone 47N
         proj4.defs("EPSG:32647", "+proj=utm +zone=47 +datum=WGS84 +units=m +no_defs");
 
         const BASE_SHEETS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRo7_oH2qCTWXlnejCHS7-4VAqmQasQ3oF3N2vBfiefz7xVFfZy3iamOwDH9bizLsUWcAaxZeIKZUxt/pub?gid=549658327&single=true&output=csv";
         
-        // ชุดสี "High Distinction Blue" - ปรับ Contrast ให้แยกแยะ Receiver ได้ง่ายที่สุด
-        const RECEIVER_COLORS = [
-            '#1e3a8a', // Deep Navy
-            '#00d1ff', // Neon Cyan (Very Bright)
-            '#4f46e5', // Indigo
-            '#38bdf8', // Sky Blue
-            '#1d4ed8', // Bold Blue
-            '#93c5fd'  // Soft Blue
-        ];
+        // ชุดสี High Contrast Blue Harmony
+        const RECEIVER_COLORS = ['#1e3a8a', '#00d1ff', '#4f46e5', '#38bdf8', '#1d4ed8', '#93c5fd'];
 
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
@@ -166,19 +131,10 @@
             const mapRef = useRef(null);
             const markerGroupRef = useRef(null);
 
-            const monthNamesThai = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-
-            const resetMapView = () => {
-                if (mapRef.current && markerGroupRef.current) {
-                    const bounds = L.latLngBounds();
-                    let hasPoints = false;
-                    markerGroupRef.current.eachLayer(layer => {
-                        if (layer instanceof L.CircleMarker) {
-                            bounds.extend(layer.getLatLng());
-                            hasPoints = true;
-                        }
-                    });
-                    if (hasPoints) mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 17 });
+            // ฟังก์ชันกู้ชีพแผนที่ (แก้ปัญหาจอกร่ายบน GitHub Pages)
+            const invalidateMap = () => {
+                if (mapRef.current) {
+                    setTimeout(() => mapRef.current.invalidateSize(), 500);
                 }
             };
 
@@ -187,35 +143,34 @@
                     const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CartoDB' });
                     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
                     const map = L.map('map', { center: [13.7367, 100.5231], zoom: 12, layers: [light], zoomControl: true });
-                    const baseMaps = { 
-                        "<span class='text-[10px] font-black uppercase tracking-wider text-slate-500'>Street Map</span>": light, 
-                        "<span class='text-[10px] font-black uppercase tracking-wider text-slate-500'>Satellite</span>": satellite 
-                    };
+                    
+                    const baseMaps = { "Street Map": light, "Satellite": satellite };
                     L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
-                    L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
+                    
                     const zoomContainer = map.zoomControl.getContainer();
                     const homeBtn = L.DomUtil.create('a', 'leaflet-control-home-btn', zoomContainer);
                     homeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
                     homeBtn.href = '#'; homeBtn.title = 'Reset View';
-                    L.DomEvent.on(homeBtn, 'click', (e) => { L.DomEvent.preventDefault(e); resetMapView(); });
+                    
+                    L.DomEvent.on(homeBtn, 'click', (e) => {
+                        L.DomEvent.preventDefault(e);
+                        if (markerGroupRef.current && markerGroupRef.current.getLayers().length > 0) {
+                            const bounds = L.featureGroup(markerGroupRef.current.getLayers()).getBounds();
+                            map.fitBounds(bounds, { padding: [50, 50] });
+                        }
+                    });
+
                     mapRef.current = map;
                     markerGroupRef.current = L.layerGroup().addTo(map);
+                    invalidateMap();
                 }
             }, []);
 
-            const processDateSmart = (dateStr) => {
-                if (!dateStr) return { display: 'ไม่ระบุ', sortValue: 0 };
-                const cleanStr = String(dateStr).trim();
-                const parts = cleanStr.split(/[-/\s]+/);
-                let day = parts[0]; let monthPart = parts[1]; let yearPart = parts[2] || "69";
-                const monthMap = { 'ม.ค.': 0, 'ก.พ.': 1, 'มี.ค.': 2, 'เม.ย.': 3, 'พ.ค.': 4, 'มิ.ย.': 5, 'ก.ค.': 6, 'ส.ค.': 7, 'ก.ย.': 8, 'ต.ค.': 9, 'พ.ย.': 10, 'ธ.ค.': 11 };
-                if (!isNaN(monthPart) && monthPart.length > 0 && monthPart.length <= 2) {
-                    const monthIdx = parseInt(monthPart) - 1;
-                    return { display: `${day} ${monthNamesThai[monthIdx] || monthPart} ${yearPart.slice(-2)}`, sortValue: new Date(2026, monthIdx, parseInt(day)).getTime() };
-                }
-                const monthIdx = monthMap[monthPart];
-                if (monthIdx !== undefined) return { display: `${day} ${monthNamesThai[monthIdx]} ${yearPart.slice(-2)}`, sortValue: new Date(2026, monthIdx, parseInt(day)).getTime() };
-                return { display: cleanStr, sortValue: Date.now() };
+            const sanitizeUrl = (url) => {
+                if (!url || typeof url !== 'string') return "";
+                let clean = url.replace(/"/g, '').trim();
+                const match = clean.match(/https?:\/\/[^\s]+/);
+                return match ? match[0] : "";
             };
 
             const parseCSVLine = (line) => {
@@ -234,26 +189,29 @@
                 return rawArray.map(item => {
                     const obj = { ...item };
                     const photoKey = Object.keys(obj).find(k => k.toLowerCase().includes('photo') || k.toLowerCase().includes('link') || k.includes('รูป'));
-                    obj.DriveUrl = (obj[photoKey] || "").replace(/"/g, '').trim();
-                    if (obj.DriveUrl && !obj.DriveUrl.startsWith('http')) obj.DriveUrl = 'https://' + obj.DriveUrl;
+                    obj.DriveUrl = sanitizeUrl(obj[photoKey]);
+                    
                     const reciverKey = Object.keys(obj).find(k => k.toLowerCase().includes('reciver') || k.toLowerCase().includes('receiver'));
                     obj.ReceiverNo = String(obj[reciverKey] || 'N/A').replace(/"/g, '');
+
+                    // ล้างเครื่องหมายคอมม่าเพื่อให้ Proj4 ทำงานได้
                     ['North coordinate', 'East coordinate', 'Elevation'].forEach(key => {
                         if (obj[key] !== undefined) {
                             const numStr = String(obj[key]).replace(/,/g, '').replace(/"/g, '');
-                            const num = parseFloat(numStr); obj[key] = isNaN(num) ? obj[key] : num;
+                            const num = parseFloat(numStr);
+                            obj[key] = isNaN(num) ? obj[key] : num;
                         }
                     });
+
                     if (typeof obj['North coordinate'] === 'number' && typeof obj['East coordinate'] === 'number') {
                         try {
                             const [lon, lat] = proj4("EPSG:32647", "WGS84", [obj['East coordinate'], obj['North coordinate']]);
                             obj.lat = lat; obj.lon = lon;
-                        } catch (e) { obj.lat = null; obj.lon = null; }
+                        } catch (e) { console.error(e); }
                     }
-                    const dateInfo = processDateSmart(obj.Date);
-                    obj.DateDisplay = dateInfo.display; obj.DateSortValue = dateInfo.sortValue;
+
                     const name = String(obj.Name || "").replace(/"/g, '').toUpperCase();
-                    if (name.includes('GCP')) obj.type = 'GCP'; else if (name.includes('GCS')) obj.type = 'GCS'; else if (name.includes('CP')) obj.type = 'CP'; else obj.type = 'Other';
+                    obj.type = name.includes('GCP') ? 'GCP' : name.includes('GCS') ? 'GCS' : name.includes('CP') ? 'CP' : 'Other';
                     return obj;
                 });
             };
@@ -266,13 +224,14 @@
                     const rows = text.split(/\r?\n/).filter(line => line.trim() !== "");
                     const headers = parseCSVLine(rows[0]).map(h => h.trim());
                     const rawData = rows.slice(1).map(line => {
-                        const values = parseCSVLine(line); const obj = {};
+                        const values = parseCSVLine(line);
+                        const obj = {};
                         headers.forEach((header, i) => { obj[header] = values[i] !== undefined ? values[i].trim() : ""; });
                         return obj;
                     });
-                    const processed = standardizeData(rawData);
-                    setData(processed);
+                    setData(standardizeData(rawData));
                     setLastUpdated(new Date().toLocaleTimeString('th-TH'));
+                    invalidateMap();
                 } catch (err) { console.error(err); }
                 setLoading(false);
             };
@@ -281,277 +240,208 @@
 
             const filteredData = useMemo(() => {
                 return data.filter(item => {
-                    const name = String(item.Name || '').toLowerCase();
-                    const matchesSearch = name.includes(searchTerm.toLowerCase());
-                    const matchesDate = filterDate === 'All' || item.DateDisplay === filterDate;
+                    const matchesSearch = String(item.Name || '').toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchesDate = filterDate === 'All' || item.Date === filterDate;
                     const matchesType = filterType === 'All' || item.type === filterType;
                     return matchesSearch && matchesDate && matchesType;
                 });
             }, [data, searchTerm, filterDate, filterType]);
 
+            useEffect(() => {
+                if (mapRef.current && markerGroupRef.current) {
+                    markerGroupRef.current.clearLayers();
+                    filteredData.forEach(p => {
+                        if (p.lat && p.lon) {
+                            const color = p.type === 'GCP' ? '#1e3a8a' : p.type === 'CP' ? '#2563eb' : '#00d1ff';
+                            const marker = L.circleMarker([p.lat, p.lon], { radius: 7, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9 });
+                            marker.bindPopup(`<b>${p.Name}</b><br>Type: ${p.type}<br>Elev: ${p.Elevation?.toFixed(2)} m`);
+                            markerGroupRef.current.addLayer(marker);
+                        }
+                    });
+                    invalidateMap();
+                }
+            }, [filteredData]);
+
             const stats = useMemo(() => {
                 const total = data.length;
-                if (total === 0) return { total: 0, gcp: 0, cp: 0, gcs: 0, elev: '0' };
                 const gcp = data.filter(d => d.type === 'GCP').length;
                 const cp = data.filter(d => d.type === 'CP').length;
                 const gcs = data.filter(d => d.type === 'GCS').length;
-                const elevP = data.filter(d => typeof d.Elevation === 'number');
-                const avgE = elevP.length > 0 ? elevP.reduce((a, b) => a + b.Elevation, 0) / elevP.length : 0;
+                const validElev = data.filter(d => typeof d.Elevation === 'number');
+                const avgE = validElev.length > 0 ? validElev.reduce((s, c) => s + c.Elevation, 0) / validElev.length : 0;
                 return { total, gcp, cp, gcs, elev: Math.round(avgE).toString() };
             }, [data]);
 
-            const timelineChartData = useMemo(() => {
+            const chartData = useMemo(() => {
                 const groups = {};
                 data.forEach(d => {
-                    const date = d.DateDisplay; const receiver = d.ReceiverNo;
-                    if (!groups[date]) groups[date] = { date, sort: d.DateSortValue };
-                    groups[date][receiver] = (groups[date][receiver] || 0) + 1;
+                    const key = d.Date || 'N/A';
+                    if (!groups[key]) groups[key] = { date: key };
+                    groups[key][d.ReceiverNo] = (groups[key][d.ReceiverNo] || 0) + 1;
                 });
-                return Object.values(groups).sort((a, b) => a.sort - b.sort);
+                return Object.values(groups);
             }, [data]);
 
-            const allReceivers = useMemo(() => {
+            const allRecs = useMemo(() => {
                 const set = new Set(); data.forEach(d => set.add(d.ReceiverNo));
                 return Array.from(set).sort();
             }, [data]);
 
-            const receiverStatsData = useMemo(() => {
-                const counts = {}; data.forEach(d => { counts[d.ReceiverNo] = (counts[d.ReceiverNo] || 0) + 1; });
+            const pieData = useMemo(() => {
+                const counts = {}; data.forEach(d => counts[d.ReceiverNo] = (counts[d.ReceiverNo] || 0) + 1);
                 return Object.entries(counts).map(([name, value]) => ({ name, value }));
             }, [data]);
 
-            const availableDates = useMemo(() => {
-                const uniqueDates = []; const map = new Map();
-                data.forEach(d => {
-                    if (d.DateDisplay && !map.has(d.DateDisplay)) {
-                        map.set(d.DateDisplay, true); uniqueDates.push({ label: d.DateDisplay, sort: d.DateSortValue });
-                    }
-                });
-                return uniqueDates.sort((a, b) => a.sort - b.sort).map(d => d.label);
-            }, [data]);
-
-            const zoomToPoint = (row) => {
-                if (row.lat && row.lon && mapRef.current) {
-                    mapRef.current.flyTo([row.lat, row.lon], 18, { duration: 1.5 });
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-            };
-
-            useEffect(() => {
-                if (mapRef.current && markerGroupRef.current) {
-                    markerGroupRef.current.clearLayers();
-                    const bounds = L.latLngBounds(); let hasPoints = false;
-                    filteredData.forEach(p => {
-                        if (p.lat && p.lon) {
-                            const color = p.type === 'GCP' ? '#1e3a8a' : p.type === 'CP' ? '#2563eb' : '#00d1ff';
-                            const marker = L.circleMarker([p.lat, p.lon], { radius: 7, fillColor: color, color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.95 });
-                            marker.bindPopup(`<div class="p-3 min-w-[220px]"><div class="flex items-center gap-2 mb-2 pb-2 border-b"><div class="w-3 h-3 rounded-full" style="background-color: ${color}"></div><span class="font-black text-slate-800 text-lg">${p.Name}</span></div><div class="space-y-2 text-[11px] font-bold text-slate-600"><div class="flex justify-between px-2 py-1 bg-slate-50 rounded"><span>TYPE</span> <span>${p.type}</span></div><div class="flex justify-between px-2 py-1 bg-slate-50 rounded"><span>UTM N</span> <span>${p['North coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span></div><div class="flex justify-between px-2 py-1 bg-slate-50 rounded"><span>UTM E</span> <span>${p['East coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span></div><div class="flex justify-between px-2 py-1 bg-slate-50 rounded"><span>ELEV.</span> <span class="text-indigo-600 font-bold">${p.Elevation ? p.Elevation.toFixed(2) : '-'} m</span></div></div>${p.DriveUrl ? `<a href="${p.DriveUrl}" target="_blank" class="mt-4 flex items-center justify-center bg-slate-900 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all">เปิดดูใน Drive</a>` : ''}</div>`);
-                            markerGroupRef.current.addLayer(marker);
-                            bounds.extend([p.lat, p.lon]); hasPoints = true;
-                        }
-                    });
-                    if (hasPoints && bounds.isValid()) mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 17 });
-                }
-            }, [filteredData]);
-
             return (
-                <div className="min-h-screen p-6 lg:p-10 text-slate-900 bg-[#f8fafc]">
-                    <header className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="min-h-screen p-6 lg:p-10">
+                    <header className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
                         <div className="flex items-center gap-6">
-                            <div className="p-4 bg-indigo-700 rounded-[1.75rem] shadow-indigo-100 shadow-2xl flex items-center justify-center transition-transform hover:scale-105 overflow-hidden">
+                            <div className="p-4 bg-indigo-700 rounded-[1.75rem] shadow-2xl flex items-center justify-center transition-transform hover:scale-105">
                                 <Icon name="minimal-gnss" size={56} className="text-white" />
                             </div>
                             <div>
                                 <h1 className="text-4xl font-black text-slate-800 tracking-tight leading-tight">Koh Tung Survey Point</h1>
-                                <div className="flex flex-col gap-1 mt-2">
-                                    <span className="text-slate-500 text-[13px] font-bold uppercase tracking-wide">สำรวจระหว่างวันที่ 11-25 ก.พ. 69 และ 11-29 มี.ค. 69</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="flex items-center gap-1.5 text-emerald-600 text-[10px] font-black uppercase tracking-[0.1em] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
-                                            <Icon name="cloud-check" size={10} /> Sync Online
-                                        </span>
-                                        <span className="text-slate-400 text-[11px] font-medium uppercase">Updated: {lastUpdated || '...'}</span>
-                                    </div>
-                                </div>
+                                <p className="text-slate-500 font-bold mt-1 uppercase text-sm tracking-wide">สำรวจระหว่างวันที่ 11-25 ก.พ. 69 และ 11-29 มี.ค. 69</p>
                             </div>
                         </div>
-                        <button onClick={fetchCloudData} disabled={loading} className="flex items-center gap-3 bg-white border border-slate-100 text-slate-700 px-8 py-4 rounded-[1.5rem] text-sm font-black hover:bg-slate-50 transition-all shadow-premium active:scale-95">
+                        <button onClick={fetchCloudData} className="bg-white border px-8 py-4 rounded-[1.5rem] font-black hover:bg-slate-50 shadow-sm flex items-center gap-2 active:scale-95 transition-all">
                             <Icon name="refresh-cw" size={20} className={loading ? 'animate-spin' : ''} /> Refresh Data
                         </button>
                     </header>
 
                     <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                         <div className="lg:col-span-7 space-y-8">
+                            {/* Stats Summary */}
                             <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                <div className="bg-white p-6 rounded-[2rem] shadow-premium flex flex-col justify-center border border-slate-50/50 transform hover:translate-y-[-2px] transition-all">
-                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Total</p>
-                                    <h3 className="text-4xl font-black text-slate-900 tracking-tight">{stats.total}</h3>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
+                                    <h3 className="text-4xl font-black">{stats.total}</h3>
                                 </div>
-                                <div className="bg-white p-6 rounded-[2rem] shadow-premium border-l-8 border-indigo-900 flex flex-col justify-center transform hover:translate-y-[-2px] transition-all">
-                                    <p className="text-indigo-900 text-[10px] font-black uppercase tracking-widest mb-1">GCP</p>
-                                    <h3 className="text-4xl font-black text-slate-900 tracking-tight">{stats.gcp}</h3>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-indigo-900">
+                                    <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest mb-1">GCP</p>
+                                    <h3 className="text-4xl font-black">{stats.gcp}</h3>
                                 </div>
-                                <div className="bg-white p-6 rounded-[2rem] shadow-premium border-l-8 border-blue-600 flex flex-col justify-center transform hover:translate-y-[-2px] transition-all">
-                                    <p className="text-blue-600 text-[10px] font-black uppercase tracking-widest mb-1">CP</p>
-                                    <h3 className="text-4xl font-black text-slate-900 tracking-tight">{stats.cp}</h3>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-blue-600">
+                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">CP</p>
+                                    <h3 className="text-4xl font-black">{stats.cp}</h3>
                                 </div>
-                                <div className="bg-white p-6 rounded-[2rem] shadow-premium border-l-8 border-sky-400 flex flex-col justify-center transform hover:translate-y-[-2px] transition-all">
-                                    <p className="text-sky-500 text-[10px] font-black uppercase tracking-widest mb-1">GCS</p>
-                                    <h3 className="text-4xl font-black text-slate-900 tracking-tight">{stats.gcs}</h3>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-sky-400">
+                                    <p className="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-1">GCS</p>
+                                    <h3 className="text-4xl font-black">{stats.gcs}</h3>
                                 </div>
-                                <div className="bg-slate-900 p-6 rounded-[2rem] shadow-2xl flex flex-col justify-center">
-                                    <p className="text-slate-500 text-[10px] font-black uppercase mb-1 opacity-60">Avg Elev.</p>
+                                <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl flex flex-col justify-center">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 opacity-60">Avg Elev.</p>
                                     <h3 className="text-3xl font-black text-white">{stats.elev}m</h3>
                                 </div>
                             </section>
 
-                            <section className="bg-white rounded-[2.5rem] shadow-premium overflow-hidden border border-slate-100 flex flex-col h-full">
-                                <div className="p-8 flex flex-col gap-6 border-b border-slate-50 bg-slate-50/20">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-3">
-                                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Survey Data Table</h3>
-                                            <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase tracking-wider shadow-sm">
-                                                {filteredData.length} POINTS SHOWN
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <div className="relative flex items-center bg-white rounded-2xl px-4 border border-slate-200 flex-grow max-w-xs shadow-sm focus-within:border-blue-400 transition-all">
+                            {/* Data Table */}
+                            <section className="bg-white rounded-[2.5rem] shadow-sm border overflow-hidden">
+                                <div className="p-8 border-b bg-slate-50/20">
+                                    <h3 className="text-2xl font-black mb-4">Survey Data Table</h3>
+                                    <div className="flex flex-wrap gap-3">
+                                        <div className="relative flex items-center bg-white rounded-2xl px-4 border flex-grow max-w-xs shadow-sm">
                                             <Icon name="search" size={16} className="text-slate-400 mr-2" />
-                                            <input type="text" placeholder="Search points..." className="bg-transparent border-none py-3 text-sm font-bold focus:ring-0 w-full" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                            <input type="text" placeholder="Search..." className="bg-transparent border-none py-3 text-sm font-bold focus:ring-0 w-full outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                         </div>
-                                        <select className="bg-white border border-slate-200 rounded-2xl py-3 px-4 text-xs font-black text-slate-700 outline-none hover:border-blue-300 transition-all cursor-pointer shadow-sm" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                                        <select className="bg-white border rounded-2xl px-4 py-2 text-xs font-black shadow-sm" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
                                             <option value="All">All Types</option>
-                                            <option value="GCP">GCP Only</option><option value="CP">CP Only</option><option value="GCS">GCS Only</option>
-                                        </select>
-                                        <select className="bg-white border border-slate-200 rounded-2xl py-3 px-4 text-xs font-black text-slate-700 outline-none hover:border-blue-300 transition-all cursor-pointer shadow-sm" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}>
-                                            <option value="All">All Dates</option>
-                                            {availableDates.map(d => <option key={d} value={d}>{d}</option>)}
+                                            <option value="GCP">GCP</option><option value="CP">CP</option><option value="GCS">GCS</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div className="no-horizontal-scroll max-h-[640px] overflow-y-auto">
-                                    <table className="w-full text-left border-collapse table-fixed">
-                                        <thead className="sticky top-0 z-10 bg-white border-b border-slate-200">
-                                            <tr className="bg-slate-50/50">
-                                                <th className="w-[18%] px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Name</th>
-                                                <th className="w-[25%] px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">UTM (N, E)</th>
-                                                <th className="w-[12%] px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Elev.</th>
-                                                <th className="w-[30%] px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Date & Receiver</th>
-                                                <th className="w-[15%] px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
+                                <div className="no-horizontal-scroll max-h-[600px] overflow-y-auto">
+                                    <table className="w-full table-fixed text-left">
+                                        <thead className="sticky top-0 z-10 bg-white border-b text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                            <tr>
+                                                <th className="w-[18%] p-6">Name</th>
+                                                <th className="w-[25%] p-6">UTM (N, E)</th>
+                                                <th className="w-[12%] p-6 text-center">Elev.</th>
+                                                <th className="w-[30%] p-6">Date & Receiver</th>
+                                                <th className="w-[15%] p-6 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {filteredData.length > 0 ? filteredData.map((row, idx) => (
-                                                <tr key={idx} className="table-row-hover transition-all group">
-                                                    <td className="px-6 py-7">
-                                                        <div className="flex flex-col gap-2">
-                                                            <span className="font-black text-slate-900 block text-lg leading-none tracking-tight group-hover:text-blue-700 transition-colors">{row.Name}</span>
-                                                            <span className={`inline-block w-fit px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm ${row.type === 'GCP' ? 'bg-indigo-900 text-white' : row.type === 'CP' ? 'bg-blue-600 text-white' : 'bg-sky-500 text-white'}`}>{row.type}</span>
+                                            {filteredData.map((row, i) => (
+                                                <tr key={i} className="table-row-hover transition-all">
+                                                    <td className="p-6">
+                                                        <span className="font-black text-slate-900 block text-lg mb-1 truncate">{row.Name}</span>
+                                                        <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${row.type === 'GCP' ? 'bg-indigo-900 text-white' : row.type === 'CP' ? 'bg-blue-600 text-white' : 'bg-sky-500 text-white'}`}>{row.type}</span>
+                                                    </td>
+                                                    <td className="p-6 font-mono text-[10px] text-slate-500 leading-tight">
+                                                        N: <span className="font-bold text-slate-700">{row['North coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span><br/>
+                                                        E: <span className="font-bold text-slate-700">{row['East coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span>
+                                                    </td>
+                                                    <td className="p-6 text-center font-black text-slate-800">{row.Elevation?.toFixed(2)}</td>
+                                                    <td className="p-6 text-[11px]">
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <div className="flex items-center gap-2 font-bold text-slate-600"><Icon name="calendar-days" size={14} /> {row.Date}</div>
+                                                            <div className="flex items-center gap-2 font-black text-indigo-700"><Icon name="database" size={14} /> #{row.ReceiverNo}</div>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-7">
-                                                        <div className="flex flex-col gap-1.5 font-mono text-[10px] text-slate-500">
-                                                            <div className="flex items-center gap-3"><span className="opacity-40 font-black w-3 text-blue-600">N</span> <span className="font-bold text-slate-700 truncate">{typeof row['North coordinate'] === 'number' ? row['North coordinate'].toLocaleString(undefined, {minimumFractionDigits: 3}) : row['North coordinate']}</span></div>
-                                                            <div className="flex items-center gap-3"><span className="opacity-40 font-black w-3 text-blue-600">E</span> <span className="font-bold text-slate-700 truncate">{typeof row['East coordinate'] === 'number' ? row['East coordinate'].toLocaleString(undefined, {minimumFractionDigits: 3}) : row['East coordinate']}</span></div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-7 text-center">
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="font-black text-slate-800 text-base">{row.Elevation ? row.Elevation.toFixed(2) : '-'}</span>
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">METERS</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-7">
-                                                        <div className="flex flex-col gap-2.5">
-                                                            <div className="flex items-center gap-2.5">
-                                                                <div className="p-1.5 bg-slate-100 rounded-lg text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all">
-                                                                    <Icon name="calendar-days" size={14} />
-                                                                </div>
-                                                                <span className="text-[11px] font-bold text-slate-600 truncate">{row.DateDisplay}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2.5">
-                                                                <div className="p-1.5 bg-slate-100 rounded-lg text-slate-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-all">
-                                                                    <Icon name="database" size={14} />
-                                                                </div>
-                                                                <span className="text-[11px] font-black text-indigo-700 truncate">RECEIVER #{row.ReceiverNo}</span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-7 text-right space-x-2">
+                                                    <td className="p-6 text-right">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            <button onClick={() => zoomToPoint(row)} className="p-3 bg-white border border-slate-100 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-90" title="ดูในแผนที่">
-                                                                <Icon name="map-pin" size={18} />
-                                                            </button>
+                                                            <button onClick={() => { mapRef.current.flyTo([row.lat, row.lon], 18); window.scrollTo({top:0, behavior:'smooth'}); }} className="p-3 bg-white border border-slate-100 text-blue-600 rounded-2xl shadow-sm hover:bg-blue-600 hover:text-white transition-all"><Icon name="map-pin" size={18} /></button>
                                                             {row.DriveUrl && (
-                                                                <button onClick={() => window.open(row.DriveUrl, '_blank')} className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-sm active:scale-90" title="เปิดรูปถ่าย">
-                                                                    <Icon name="external-link" size={18} />
-                                                                </button>
+                                                                <button onClick={() => window.open(row.DriveUrl, '_blank')} className="p-3 bg-slate-900 text-white rounded-2xl shadow-sm hover:bg-blue-600 transition-all"><Icon name="external-link" size={18} /></button>
                                                             )}
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            )) : (
-                                                <tr><td colSpan="5" className="px-10 py-48 text-center text-slate-300 italic font-black text-2xl tracking-tight opacity-50 uppercase">No Data Found</td></tr>
-                                            )}
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
                             </section>
                         </div>
 
+                        {/* Map Preview */}
                         <div className="lg:col-span-5 map-container">
-                            <div className="bg-white p-2 rounded-[2.5rem] shadow-premium border border-slate-100 h-full relative group overflow-hidden">
+                            <div className="bg-white p-2 rounded-[2.5rem] shadow-premium border h-full relative overflow-hidden">
                                 <div id="map"></div>
                                 <div className="map-status-pill">
                                     <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></div>
-                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Survey Map Preview</span>
+                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Survey Map Active</span>
                                 </div>
                             </div>
                         </div>
                     </main>
 
-                    {/* Charts Area: ปรับ Contrast สูงขึ้น (แยกแยะ Receiver ได้ง่าย) */}
+                    {/* Charts Section */}
                     <section className="max-w-7xl mx-auto mt-12 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
-                        <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] shadow-premium border border-slate-50">
+                        <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] shadow-sm border">
                             <div className="flex items-center gap-4 mb-10">
                                 <div className="p-3 bg-blue-50 rounded-2xl text-blue-700"><Icon name="trending-up" size={24} /></div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Daily Survey Progress</h3>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">จำนวนจุดสำรวจรายวัน</p>
-                                </div>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">จำนวนจุดสำรวจรายวัน</h3>
                             </div>
-                            <div className="h-[350px] w-full">
+                            <div className="h-[350px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={timelineChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                                    <BarChart data={chartData}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} />
-                                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px 16px' }} />
-                                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '30px', fontSize: '12px', fontWeight: 800 }} />
-                                        {allReceivers.map((receiver, index) => (
-                                            <Bar key={receiver} dataKey={receiver} stackId="a" fill={RECEIVER_COLORS[index % RECEIVER_COLORS.length]} barSize={28} />
+                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700 }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700 }} />
+                                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px rgba(0,0,0,0.1)' }} />
+                                        <Legend verticalAlign="top" align="right" iconType="circle" />
+                                        {allRecs.map((r, i) => (
+                                            <Bar key={r} dataKey={r} stackId="a" fill={RECEIVER_COLORS[i % RECEIVER_COLORS.length]} barSize={28} />
                                         ))}
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
-
-                        <div className="bg-white p-10 rounded-[3rem] shadow-premium border border-slate-50 flex flex-col">
+                        <div className="bg-white p-10 rounded-[3rem] shadow-sm border flex flex-col">
                             <div className="flex items-center gap-4 mb-10">
                                 <div className="p-3 bg-blue-50 rounded-2xl text-blue-700"><Icon name="pie-chart" size={24} /></div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Receiver Utilization</h3>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">สัดส่วนการใช้เครื่องสำรวจทั้งหมด</p>
-                                </div>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">Receiver Utilization</h3>
                             </div>
-                            <div className="h-[350px] w-full flex-grow">
+                            <div className="h-[350px] flex-grow">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
-                                        <Pie data={receiverStatsData} innerRadius={75} outerRadius={115} paddingAngle={8} dataKey="value" stroke="none">
-                                            {receiverStatsData.map((entry, index) => <Cell key={`cell-${index}`} fill={RECEIVER_COLORS[index % RECEIVER_COLORS.length]} />)}
+                                        <Pie data={pieData} innerRadius={75} outerRadius={115} paddingAngle={8} dataKey="value" stroke="none">
+                                            {pieData.map((e, i) => <Cell key={i} fill={RECEIVER_COLORS[i % RECEIVER_COLORS.length]} />)}
                                         </Pie>
-                                        <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                                        <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 800 }} />
+                                        <Tooltip contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                        <Legend verticalAlign="bottom" iconType="circle" />
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>
