@@ -428,9 +428,9 @@
                                     <table className="w-full table-fixed text-left border-collapse">
                                         <thead className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
                                             <tr>
-                                                <th className="w-[18%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Name</th>
-                                                <th className="w-[25%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">UTM (N, E)</th>
-                                                <th className="w-[12%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Elev. (m)</th>
+                                                <th className="w-[22%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Name</th>
+                                                <th className="w-[23%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">UTM (N, E)</th>
+                                                <th className="w-[10%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Elev. (m)</th>
                                                 <th className="w-[30%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Date & Receiver</th>
                                                 <th className="w-[15%] p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
                                             </tr>
@@ -439,8 +439,8 @@
                                             {filteredData.map((row, i) => (
                                                 <tr key={i} className="table-row-hover transition-all group">
                                                     <td className="p-6">
-                                                        {/* แก้ไขให้แสดงชื่อเต็มและเพิ่ม Tooltip เมื่อ Hover */}
-                                                        <span className="font-black text-slate-900 block text-lg group-hover:text-indigo-600 transition-colors break-words" title={row.Name}>{row.Name}</span>
+                                                        {/* กลับไปใช้ truncate เพื่อความเป็นระเบียบ และเพิ่ม title เพื่อดูชื่อเต็มตอน hover */}
+                                                        <span className="font-black text-slate-900 block text-lg group-hover:text-indigo-600 transition-colors truncate" title={row.Name}>{row.Name}</span>
                                                         <span className={`inline-block mt-2 px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm ${row.type === 'GCP' ? 'bg-indigo-900 text-white' : row.type === 'CP' ? 'bg-blue-600 text-white' : 'bg-sky-500 text-white'}`}>{row.type}</span>
                                                     </td>
                                                     <td className="p-6">
