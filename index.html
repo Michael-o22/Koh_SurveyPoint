@@ -449,7 +449,10 @@
                                                             <div className="flex items-center gap-3"><span className="text-slate-400 font-bold w-3">E</span> <span className="text-slate-700 font-medium">{row['East coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span></div>
                                                         </div>
                                                     </td>
-                                                    <td className="p-6 text-center"><span className="font-black text-slate-800 text-lg">{row.Elevation?.toFixed(2)}</span></td>
+                                                    <td className="p-6 text-center">
+                                                        {/* ปรับแก้ขนาดตัวเลขให้เล็กลงและดูไม่เด่นจนเกินไป */}
+                                                        <span className="font-bold text-slate-500 text-sm">{row.Elevation?.toFixed(2)}</span>
+                                                    </td>
                                                     <td className="p-6">
                                                         <div className="flex flex-col gap-2.5">
                                                             <div className="flex items-center gap-2.5 text-[11px] font-bold text-slate-600">
