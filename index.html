@@ -34,7 +34,6 @@
         #map { height: 100%; width: 100%; border-radius: 2rem; z-index: 10; border: 1px solid #f1f5f9; background: #f1f5f9; }
         .map-container { height: calc(100vh - 120px); position: sticky; top: 40px; }
         
-        /* ขยับตำแหน่งปุ่มควบคุมแผนที่ลงมาเพื่อไม่ให้ทับชื่อ Map */
         .leaflet-top.leaflet-left { 
             margin-top: 85px !important; 
             margin-left: 16px !important;
@@ -83,18 +82,31 @@
             border-radius: 0 0 4px 4px;
         }
 
+        /* Leaflet Popup Modern UI */
+        .leaflet-popup-content-wrapper { 
+            border-radius: 1.5rem !important; 
+            padding: 4px !important; 
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+            border: 1px solid #f1f5f9;
+        }
+        .leaflet-popup-content { 
+            margin: 12px 16px !important; 
+            line-height: 1.5 !important;
+            min-width: 170px;
+        }
+        .leaflet-popup-tip { box-shadow: none !important; }
+        .leaflet-container a.leaflet-popup-close-button {
+            padding: 8px 8px 0 0 !important;
+            color: #94a3b8 !important;
+        }
+
         @media (max-width: 1024px) {
             .map-container { height: 480px; position: relative; top: 0; margin-bottom: 2rem; }
         }
 
-        .no-horizontal-scroll {
-            overflow-x: hidden !important;
-        }
-        
-        .leaflet-popup-content-wrapper { border-radius: 1.5rem; padding: 6px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.3); }
+        .no-horizontal-scroll { overflow-x: hidden !important; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        
         .table-row-hover:hover { background-color: #f8fafc; }
     </style>
 </head>
@@ -174,21 +186,14 @@
                     const light = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CartoDB' });
                     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
                     const map = L.map('map', { center: [13.7367, 100.5231], zoom: 12, layers: [light], zoomControl: true });
-                    
                     const baseMaps = { "Street Map": light, "Satellite": satellite };
                     L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
                     L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
-                    
                     const zoomContainer = map.zoomControl.getContainer();
                     const homeBtn = L.DomUtil.create('a', 'leaflet-control-home-btn', zoomContainer);
                     homeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
                     homeBtn.href = '#'; homeBtn.title = 'Reset View';
-                    
-                    L.DomEvent.on(homeBtn, 'click', (e) => {
-                        L.DomEvent.preventDefault(e);
-                        resetMapView();
-                    });
-
+                    L.DomEvent.on(homeBtn, 'click', (e) => { L.DomEvent.preventDefault(e); resetMapView(); });
                     mapRef.current = map;
                     markerGroupRef.current = L.layerGroup().addTo(map);
                     invalidateMap();
@@ -228,10 +233,8 @@
                     const obj = { ...item };
                     const photoKey = Object.keys(obj).find(k => k.toLowerCase().includes('photo') || k.toLowerCase().includes('link') || k.includes('รูป'));
                     obj.DriveUrl = sanitizeUrl(obj[photoKey]);
-                    
                     const reciverKey = Object.keys(obj).find(k => k.toLowerCase().includes('reciver') || k.toLowerCase().includes('receiver'));
                     obj.ReceiverNo = String(obj[reciverKey] || 'N/A').replace(/"/g, '');
-
                     ['North coordinate', 'East coordinate', 'Elevation'].forEach(key => {
                         if (obj[key] !== undefined) {
                             const numStr = String(obj[key]).replace(/,/g, '').replace(/"/g, '');
@@ -239,14 +242,12 @@
                             obj[key] = isNaN(num) ? obj[key] : num;
                         }
                     });
-
                     if (typeof obj['North coordinate'] === 'number' && typeof obj['East coordinate'] === 'number') {
                         try {
                             const [lon, lat] = proj4("EPSG:32647", "WGS84", [obj['East coordinate'], obj['North coordinate']]);
                             obj.lat = lat; obj.lon = lon;
                         } catch (e) { console.error(e); }
                     }
-
                     const name = String(obj.Name || "").replace(/"/g, '').toUpperCase();
                     obj.type = name.includes('GCP') ? 'GCP' : name.includes('GCS') ? 'GCS' : name.includes('CP') ? 'CP' : 'Other';
                     obj.sortVal = getSortValue(obj.Date);
@@ -292,7 +293,40 @@
                         if (p.lat && p.lon) {
                             const color = p.type === 'GCP' ? '#1e3a8a' : p.type === 'CP' ? '#2563eb' : '#00d1ff';
                             const marker = L.circleMarker([p.lat, p.lon], { radius: 7, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.9 });
-                            marker.bindPopup(`<b>${p.Name}</b><br>Type: ${p.type}<br>Elev: ${p.Elevation?.toFixed(2)} m`);
+                            
+                            // ปรับปรุง Popup ให้เพิ่มข้อมูล Receiver
+                            const popupHtml = `
+                                <div class="popup-modern flex flex-col gap-3">
+                                    <div class="flex flex-col gap-1">
+                                        <div class="text-base font-black text-slate-800 leading-tight">${p.Name}</div>
+                                        <div class="flex items-center gap-1.5 mt-1">
+                                            <span class="px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${p.type === 'GCP' ? 'bg-indigo-900 text-white' : p.type === 'CP' ? 'bg-blue-600 text-white' : 'bg-sky-500 text-white'}">${p.type}</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col gap-1 text-xs font-bold text-slate-500">
+                                        <div class="flex items-center gap-2">
+                                            <span class="opacity-40">Elev:</span>
+                                            <span class="text-slate-800">${p.Elevation?.toFixed(2)} m</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="opacity-40 text-[9px] uppercase tracking-tighter">Date:</span>
+                                            <span class="text-slate-600">${p.Date}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="opacity-40 text-[9px] uppercase tracking-tighter">Receiver:</span>
+                                            <span class="text-indigo-700 font-black">#${p.ReceiverNo}</span>
+                                        </div>
+                                    </div>
+                                    ${p.DriveUrl ? `
+                                        <button onclick="window.open('${p.DriveUrl}', '_blank')" class="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 transition-all active:scale-95">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3h6v6m-11 5L21 3"/></svg>
+                                            <span class="text-[10px] font-black uppercase tracking-widest">Open Photo</span>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            `;
+                            
+                            marker.bindPopup(popupHtml, { maxWidth: 220, closeButton: true });
                             markerGroupRef.current.addLayer(marker);
                         }
                     });
@@ -303,11 +337,12 @@
 
             const stats = useMemo(() => {
                 const total = data.length;
+                if (total === 0) return { total: 0, gcp: 0, cp: 0, gcs: 0, elev: '0' };
                 const gcp = data.filter(d => d.type === 'GCP').length;
                 const cp = data.filter(d => d.type === 'CP').length;
                 const gcs = data.filter(d => d.type === 'GCS').length;
-                const validElev = data.filter(d => typeof d.Elevation === 'number');
-                const avgE = validElev.length > 0 ? validElev.reduce((s, c) => s + c.Elevation, 0) / validElev.length : 0;
+                const elevP = data.filter(d => typeof d.Elevation === 'number');
+                const avgE = elevP.length > 0 ? elevP.reduce((a, b) => a + b.Elevation, 0) / elevP.length : 0;
                 return { total, gcp, cp, gcs, elev: Math.round(avgE).toString() };
             }, [data]);
 
@@ -315,9 +350,7 @@
                 const groups = {};
                 data.forEach(d => {
                     const key = d.Date || 'N/A';
-                    if (!groups[key]) {
-                        groups[key] = { date: key, sortVal: getSortValue(key) };
-                    }
+                    if (!groups[key]) groups[key] = { date: key, sortVal: getSortValue(key) };
                     groups[key][d.ReceiverNo] = (groups[key][d.ReceiverNo] || 0) + 1;
                 });
                 return Object.values(groups).sort((a, b) => a.sortVal - b.sortVal);
@@ -359,58 +392,35 @@
                         <div className="lg:col-span-7 space-y-8">
                             {/* Stats Summary */}
                             <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
-                                    <h3 className="text-4xl font-black">{stats.total}</h3>
-                                </div>
-                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-indigo-900">
-                                    <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest mb-1">GCP</p>
-                                    <h3 className="text-4xl font-black">{stats.gcp}</h3>
-                                </div>
-                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-blue-600">
-                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">CP</p>
-                                    <h3 className="text-4xl font-black">{stats.cp}</h3>
-                                </div>
-                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-sky-400">
-                                    <p className="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-1">GCS</p>
-                                    <h3 className="text-4xl font-black">{stats.gcs}</h3>
-                                </div>
-                                <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl flex flex-col justify-center">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 opacity-60">Avg Elev.</p>
-                                    <h3 className="text-3xl font-black text-white">{stats.elev}m</h3>
-                                </div>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p><h3 className="text-4xl font-black">{stats.total}</h3></div>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-indigo-900"><p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest mb-1">GCP</p><h3 className="text-4xl font-black">{stats.gcp}</h3></div>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-blue-600"><p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">CP</p><h3 className="text-4xl font-black">{stats.cp}</h3></div>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-l-8 border-sky-400"><p className="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-1">GCS</p><h3 className="text-4xl font-black">{stats.gcs}</h3></div>
+                                <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl flex flex-col justify-center"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 opacity-60">Avg Elev.</p><h3 className="text-3xl font-black text-white">{stats.elev}m</h3></div>
                             </section>
 
                             {/* Survey Data Table Area */}
                             <section className="bg-white rounded-[2.5rem] shadow-premium border border-slate-100 overflow-hidden flex flex-col">
                                 <div className="p-8 border-b border-slate-50 bg-slate-50/20">
                                     <h3 className="text-2xl font-black mb-6 tracking-tight text-slate-800">Survey Data Table</h3>
-                                    
-                                    {/* ปรับแถบเครื่องมือค้นหาให้อยู่ในบรรทัดเดียวกัน */}
                                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                                         <div className="relative flex items-center bg-white rounded-2xl px-4 border border-slate-200 flex-grow shadow-sm focus-within:border-indigo-400 transition-all">
-                                            <Icon name="search" size={16} className="text-slate-400 mr-3" />
-                                            <input type="text" placeholder="ค้นหาจุดสำรวจ..." className="bg-transparent border-none py-3.5 text-sm font-bold focus:ring-0 w-full outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                            <Icon name="search" size={16} className="text-slate-400 mr-3" /><input type="text" placeholder="ค้นหาจุดสำรวจ..." className="bg-transparent border-none py-3.5 text-sm font-bold focus:ring-0 w-full outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                         </div>
-                                        
                                         <div className="relative flex items-center bg-white border border-slate-200 rounded-2xl px-4 shadow-sm hover:border-indigo-300 transition-all">
                                             <Icon name="filter" size={14} className="text-indigo-500 mr-2" />
                                             <select className="bg-transparent border-none py-3.5 pr-8 text-xs font-black text-slate-700 outline-none appearance-none cursor-pointer" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                                                <option value="All">ทุกประเภท</option>
-                                                <option value="GCP">GCP เท่านั้น</option><option value="CP">CP เท่านั้น</option><option value="GCS">GCS เท่านั้น</option>
+                                                <option value="All">ทุกประเภท</option><option value="GCP">GCP เท่านั้น</option><option value="CP">CP เท่านั้น</option><option value="GCS">GCS เท่านั้น</option>
                                             </select>
                                         </div>
-                                        
                                         <div className="relative flex items-center bg-white border border-slate-200 rounded-2xl px-4 shadow-sm hover:border-indigo-300 transition-all">
                                             <Icon name="calendar-days" size={14} className="text-slate-400 mr-2" />
                                             <select className="bg-transparent border-none py-3.5 pr-8 text-xs font-black text-slate-700 outline-none appearance-none cursor-pointer" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}>
-                                                <option value="All">ทุกวันที่</option>
-                                                {availableDates.map(date => <option key={date} value={date}>{date}</option>)}
+                                                <option value="All">ทุกวันที่</option>{availableDates.map(date => <option key={date} value={date}>{date}</option>)}
                                             </select>
                                         </div>
                                     </div>
                                 </div>
-
                                 <div className="no-horizontal-scroll max-h-[640px] overflow-y-auto">
                                     <table className="w-full table-fixed text-left border-collapse">
                                         <thead className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
@@ -425,39 +435,11 @@
                                         <tbody className="divide-y divide-slate-50">
                                             {filteredData.map((row, i) => (
                                                 <tr key={i} className="table-row-hover transition-all group">
-                                                    <td className="p-6">
-                                                        <span className="font-black text-slate-900 block text-lg truncate group-hover:text-indigo-600 transition-colors">{row.Name}</span>
-                                                        <span className={`inline-block mt-2 px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm ${row.type === 'GCP' ? 'bg-indigo-900 text-white' : row.type === 'CP' ? 'bg-blue-600 text-white' : 'bg-sky-500 text-white'}`}>{row.type}</span>
-                                                    </td>
-                                                    <td className="p-6">
-                                                        <div className="flex flex-col gap-2 font-mono-custom text-[11px]">
-                                                            <div className="flex items-center gap-3"><span className="text-blue-600 font-bold w-3">N</span> <span className="text-slate-700 font-medium">{row['North coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span></div>
-                                                            <div className="flex items-center gap-3"><span className="text-slate-400 font-bold w-3">E</span> <span className="text-slate-700 font-medium">{row['East coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span></div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-6 text-center">
-                                                        <span className="font-black text-slate-800 text-lg">{row.Elevation?.toFixed(2)}</span>
-                                                    </td>
-                                                    <td className="p-6">
-                                                        <div className="flex flex-col gap-2.5">
-                                                            <div className="flex items-center gap-2.5 text-[11px] font-bold text-slate-600">
-                                                                <div className="p-1.5 bg-slate-100 rounded-lg group-hover:bg-indigo-50 transition-colors"><Icon name="calendar-days" size={14} className="text-slate-400" /></div>
-                                                                {row.Date}
-                                                            </div>
-                                                            <div className="flex items-center gap-2.5 text-[11px] font-black text-indigo-700">
-                                                                <div className="p-1.5 bg-indigo-50 rounded-lg"><Icon name="database" size={14} className="text-indigo-600" /></div>
-                                                                RECEIVER #{row.ReceiverNo}
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-6 text-right">
-                                                        <div className="flex items-center justify-end gap-2.5">
-                                                            <button onClick={() => { mapRef.current.flyTo([row.lat, row.lon], 18); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="p-3 bg-white border border-slate-100 text-blue-600 rounded-2xl shadow-sm hover:bg-blue-600 hover:text-white transition-all active:scale-90" title="ดูในแผนที่"><Icon name="map-pin" size={18} /></button>
-                                                            {row.DriveUrl && (
-                                                                <button onClick={() => window.open(row.DriveUrl, '_blank')} className="p-3 bg-slate-900 text-white rounded-2xl shadow-sm hover:bg-indigo-600 transition-all active:scale-90" title="เปิดรูปถ่าย"><Icon name="external-link" size={18} /></button>
-                                                            )}
-                                                        </div>
-                                                    </td>
+                                                    <td className="p-6"><span className="font-black text-slate-900 block text-lg truncate group-hover:text-indigo-600 transition-colors">{row.Name}</span><span className={`inline-block mt-2 px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm ${row.type === 'GCP' ? 'bg-indigo-900 text-white' : row.type === 'CP' ? 'bg-blue-600 text-white' : 'bg-sky-500 text-white'}`}>{row.type}</span></td>
+                                                    <td className="p-6"><div className="flex flex-col gap-2 font-mono-custom text-[11px]"><div className="flex items-center gap-3"><span className="text-blue-600 font-bold w-3">N</span> <span className="text-slate-700 font-medium">{row['North coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span></div><div className="flex items-center gap-3"><span className="text-slate-400 font-bold w-3">E</span> <span className="text-slate-700 font-medium">{row['East coordinate']?.toLocaleString(undefined, {minimumFractionDigits: 3})}</span></div></div></td>
+                                                    <td className="p-6 text-center"><span className="font-black text-slate-800 text-lg">{row.Elevation?.toFixed(2)}</span></td>
+                                                    <td className="p-6"><div className="flex flex-col gap-2.5"><div className="flex items-center gap-2.5 text-[11px] font-bold text-slate-600"><div className="p-1.5 bg-slate-100 rounded-lg group-hover:bg-indigo-50 transition-colors"><Icon name="calendar-days" size={14} className="text-slate-400" /></div>{row.Date}</div><div className="flex items-center gap-2.5 text-[11px] font-black text-indigo-700"><div className="p-1.5 bg-indigo-50 rounded-lg"><Icon name="database" size={14} className="text-indigo-600" /></div>RECEIVER #{row.ReceiverNo}</div></div></td>
+                                                    <td className="p-6 text-right"><div className="flex items-center justify-end gap-2.5"><button onClick={() => { mapRef.current.flyTo([row.lat, row.lon], 18); window.scrollTo({top: 0, behavior: 'smooth'}); }} className="p-3 bg-white border border-slate-100 text-blue-600 rounded-2xl shadow-sm hover:bg-blue-600 hover:text-white transition-all active:scale-90" title="ดูในแผนที่"><Icon name="map-pin" size={18} /></button>{row.DriveUrl && (<button onClick={() => window.open(row.DriveUrl, '_blank')} className="p-3 bg-slate-900 text-white rounded-2xl shadow-sm hover:bg-indigo-600 transition-all active:scale-90" title="เปิดรูปถ่าย"><Icon name="external-link" size={18} /></button>)}</div></td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -465,8 +447,6 @@
                                 </div>
                             </section>
                         </div>
-
-                        {/* Map Preview Area */}
                         <div className="lg:col-span-5 map-container">
                             <div className="bg-white p-2 rounded-[2.5rem] shadow-premium border border-slate-100 h-full relative overflow-hidden">
                                 <div id="map"></div>
@@ -483,53 +463,22 @@
                         <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] shadow-premium border border-slate-50">
                             <div className="flex items-center gap-4 mb-10">
                                 <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-700"><Icon name="trending-up" size={24} /></div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Daily Survey Points</h3>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">จำนวนจุดสำรวจรายวัน (เรียงตามลำดับเวลา)</p>
-                                </div>
+                                <div><h3 className="text-xl font-black text-slate-800 tracking-tight">Daily Survey Points</h3><p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">จำนวนจุดสำรวจรายวัน</p></div>
                             </div>
-                            <div className="h-[350px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={sortedChartData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} />
-                                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px rgba(0,0,0,0.1)' }} />
-                                        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '30px', fontSize: '12px', fontWeight: 800 }} />
-                                        {allRecs.map((r, i) => (
-                                            <Bar key={r} dataKey={r} stackId="a" fill={RECEIVER_COLORS[i % RECEIVER_COLORS.length]} barSize={28} />
-                                        ))}
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
+                            <div className="h-[350px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={sortedChartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} dy={10} /><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} /><Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px rgba(0,0,0,0.1)' }} /><Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '30px', fontSize: '12px', fontWeight: 800 }} />{allRecs.map((r, i) => (<Bar key={r} dataKey={r} stackId="a" fill={RECEIVER_COLORS[i % RECEIVER_COLORS.length]} barSize={28} />))}</BarChart></ResponsiveContainer></div>
                         </div>
                         <div className="bg-white p-10 rounded-[3rem] shadow-premium border border-slate-50 flex flex-col">
                             <div className="flex items-center gap-4 mb-10">
                                 <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-700"><Icon name="pie-chart" size={24} /></div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Receiver Utilization</h3>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">เครื่องมือรับสัญญาณทั้งหมด</p>
-                                </div>
+                                <div><h3 className="text-xl font-black text-slate-800 tracking-tight">Receiver Utilization</h3><p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">สัดส่วนการใช้เครื่องรับสัญญาณ</p></div>
                             </div>
-                            <div className="h-[350px] flex-grow">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie data={pieData} innerRadius={75} outerRadius={115} paddingAngle={8} dataKey="value" stroke="none">
-                                            {pieData.map((e, i) => <Cell key={i} fill={RECEIVER_COLORS[i % RECEIVER_COLORS.length]} />)}
-                                        </Pie>
-                                        <Tooltip contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                        <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 800 }} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
+                            <div className="h-[350px] flex-grow"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} innerRadius={75} outerRadius={115} paddingAngle={8} dataKey="value" stroke="none">{pieData.map((e, i) => <Cell key={i} fill={RECEIVER_COLORS[i % RECEIVER_COLORS.length]} />)}</Pie><Tooltip contentStyle={{ borderRadius: '16px', border: 'none' }} /><Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 800 }} /></PieChart></ResponsiveContainer></div>
                         </div>
                     </section>
-
                     <footer className="max-w-7xl mx-auto text-center text-slate-300 text-[10px] pb-10 font-black uppercase tracking-[0.4em]">Koh Tung Project &bull; Field Data Platform 2026</footer>
                 </div>
             );
         };
-
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
